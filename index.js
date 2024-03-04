@@ -1,18 +1,16 @@
 const express = require("express");
 const mongoose = require("mongoose");
 const bodyParser = require("body-parser");
-const cors = require("cors"); // Add this line
+const cors = require("cors");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Connect to MongoDB (replace 'yourMongoDBUrl' with your actual MongoDB connection string)
 mongoose.connect("mongodb+srv://ashish:Papaji123@cluster0.9bm9aer.mongodb.net/Portfolio?retryWrites=true&w=majority", {
   useNewUrlParser: true,
   useUnifiedTopology: true,
 });
 
-// Create a MongoDB schema
 const formDataSchema = new mongoose.Schema({
   name: String,
   email: String,
@@ -21,19 +19,25 @@ const formDataSchema = new mongoose.Schema({
   message: String,
 });
 
-// Create a MongoDB model
 const FormData = mongoose.model("FormData", formDataSchema);
 
-// Middleware to parse JSON and form data
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
+app.use(cors());
 
-// CORS middleware
-app.use(cors()); // Add this line
+// Store IP addresses and their last submission timestamp
+const ipAddresses = {};
 
-// Route to handle form submission
 app.post("/submit-form", async (req, res) => {
   try {
+    const ip = req.ip;
+    const currentTime = Date.now();
+
+    // Check if the IP address has submitted a form in the last minute
+    if (ipAddresses[ip] && currentTime - ipAddresses[ip] < 60000) {
+      return res.status(429).json({ error: "Only one submission allowed per minute." });
+    }
+
     // Create a new FormData document
     const formData = new FormData({
       name: req.body.name,
@@ -46,6 +50,9 @@ app.post("/submit-form", async (req, res) => {
     // Save the document to MongoDB
     await formData.save();
 
+    // Update the timestamp for the IP address
+    ipAddresses[ip] = currentTime;
+
     // Send a response
     res.status(200).json({ message: "Form data submitted successfully" });
   } catch (error) {
@@ -54,7 +61,6 @@ app.post("/submit-form", async (req, res) => {
   }
 });
 
-// Start the server
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
